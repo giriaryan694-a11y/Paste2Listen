@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Paste2Listen</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      font-family: 'JetBrains Mono', monospace;
+      background: radial-gradient(circle at top, #020617, #000);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #e5e7eb;
+    }
+
+    .card {
+      width: 620px;
+      background: rgba(2, 6, 23, 0.95);
+      border: 1px solid rgba(56,189,248,0.3);
+      border-radius: 18px;
+      padding: 22px;
+      box-shadow: 0 0 45px rgba(56,189,248,0.35);
+    }
+
+    h1 {
+      text-align: center;
+      margin: 0 0 12px;
+      color: #38bdf8;
+      font-size: 22px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 180px;
+      background: #020617;
+      color: #e5e7eb;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 12px;
+      resize: vertical;
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56,189,248,0.4);
+    }
+
+    .controls {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .control {
+      background: #020617;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 10px;
+    }
+
+    .control label {
+      font-size: 12px;
+      opacity: 0.8;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    input[type="range"], select {
+      width: 100%;
+    }
+
+    select {
+      background: #020617;
+      color: #e5e7eb;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 4px;
+    }
+
+    .buttons {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    button {
+      padding: 10px;
+      border-radius: 12px;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+      color: #020617;
+    }
+
+    button.secondary {
+      background: #020617;
+      color: #38bdf8;
+      border: 1px solid #38bdf8;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(56,189,248,0.45);
+    }
+
+    footer {
+      margin-top: 10px;
+      text-align: center;
+      font-size: 11px;
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h1>🔊 Paste2Listen</h1>
+
+  <textarea id="text" placeholder="Paste text here and rest your eyes..."></textarea>
+
+  <div class="controls">
+    <div class="control">
+      <label>Speed (0.5x – 2x)</label>
+      <input type="range" id="rate" min="0.5" max="2" step="0.1" value="1">
+    </div>
+
+    <div class="control">
+      <label>Pitch</label>
+      <input type="range" id="pitch" min="0" max="2" step="0.1" value="1">
+    </div>
+
+    <div class="control">
+      <label>Volume (Booster)</label>
+      <input type="range" id="volume" min="0" max="1" step="0.1" value="1">
+    </div>
+
+    <div class="control">
+      <label>Voice</label>
+      <select id="voice"></select>
+    </div>
+  </div>
+
+  <div class="buttons">
+    <button onclick="play()">▶ Play</button>
+    <button class="secondary" onclick="pause()">⏸ Pause</button>
+    <button class="secondary" onclick="stop()">⏹ Stop</button>
+  </div>
+
+  <footer>Offline • Private • Eye-Friendly</footer>
+</div>
+
+<script>
+  const synth = window.speechSynthesis;
+  const voiceSelect = document.getElementById("voice");
+  let utterance;
+
+  function loadVoices() {
+    const voices = synth.getVoices();
+    voiceSelect.innerHTML = "";
+    voices.forEach((v, i) => {
+      const opt = document.createElement("option");
+      opt.value = i;
+      opt.textContent = `${v.name} (${v.lang})`;
+      voiceSelect.appendChild(opt);
+    });
+  }
+
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+
+  function play() {
+    stop();
+    const text = document.getElementById("text").value.trim();
+    if (!text) return;
+
+    utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = rate.value;
+    utterance.pitch = pitch.value;
+    utterance.volume = volume.value;
+    utterance.voice = synth.getVoices()[voiceSelect.value];
+
+    synth.speak(utterance);
+  }
+
+  function pause() {
+    if (synth.speaking && !synth.paused) synth.pause();
+    else if (synth.paused) synth.resume();
+  }
+
+  function stop() {
+    if (synth.speaking) synth.cancel();
+  }
+</script>
+
+</body>
+</html>

@@ -41,6 +41,25 @@ This is an operating system limitation, not a bug in the tool.
 For Android users, system features like **Select to Speak** or built-in TTS are recommended.
 
 ---
+## 📄 Why PDF Reading Is Not Included
+
+Paste2Listen does **not** support direct PDF reading by design.
+
+PDF files often contain complex layouts such as:
+- multi-column text
+- scattered paragraphs
+- headers, footers, and side notes
+
+When converted to speech, this usually results in:
+- incorrect reading order  
+- broken sentence flow  
+- learner confusion  
+
+For effective listening and understanding, **clean pasted text** is far better than automatic PDF parsing.
+
+This decision prioritizes **learning clarity over feature quantity**.
+
+---
 
 ## 👤 Author
 **Made by Aryan Giri**

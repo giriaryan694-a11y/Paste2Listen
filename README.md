@@ -30,6 +30,18 @@ Just text → sound.
 
 ---
 
+## ⚠️ Mobile Limitation
+
+Paste2Listen works best on **desktop browsers** like Chrome and Edge.
+
+Due to Android OS restrictions, **browser-based Text-to-Speech (Web Speech API)** has limited or no support on many Android devices.
+
+This is an operating system limitation, not a bug in the tool.
+
+For Android users, system features like **Select to Speak** or built-in TTS are recommended.
+
+---
+
 ## 👤 Author
 **Made by Aryan Giri**
 

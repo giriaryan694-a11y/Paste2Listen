@@ -88,7 +88,7 @@
     .buttons {
       margin-top: 14px;
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(5, 1fr); /* expanded to fit Paste + Clear */
       gap: 10px;
     }
 
@@ -151,9 +151,11 @@
   </div>
 
   <div class="buttons">
-    <button onclick="play()">▶ Play</button>
-    <button class="secondary" onclick="pause()">⏸ Pause</button>
-    <button class="secondary" onclick="stop()">⏹ Stop</button>
+    <button id="playBtn">▶ Play</button>
+    <button class="secondary" id="pauseBtn">⏸ Pause</button>
+    <button class="secondary" id="stopBtn">⏹ Stop</button>
+    <button class="secondary" id="pasteBtn">📋 Paste</button>
+    <button class="secondary" id="clearBtn">🧽 Clear</button>
   </div>
 
   <footer>
@@ -164,46 +166,153 @@
 </div>
 
 <script>
+  // Elements
   const synth = window.speechSynthesis;
   const voiceSelect = document.getElementById("voice");
-  let utterance;
+  const textEl = document.getElementById("text");
+  const rateEl = document.getElementById("rate");
+  const pitchEl = document.getElementById("pitch");
+  const volumeEl = document.getElementById("volume");
+
+  let utterance = null;
 
   function loadVoices() {
-    const voices = synth.getVoices();
+    const voices = synth.getVoices() || [];
     voiceSelect.innerHTML = "";
+
+    if (!voices.length) {
+      // fallback when no voices are available yet
+      const opt = document.createElement("option");
+      opt.value = -1;
+      opt.textContent = "Default (no voices loaded)";
+      voiceSelect.appendChild(opt);
+      return;
+    }
+
     voices.forEach((v, i) => {
       const opt = document.createElement("option");
       opt.value = i;
       opt.textContent = `${v.name} (${v.lang})`;
       voiceSelect.appendChild(opt);
     });
+
+    // Try to pick a sensible default (match browser language if possible)
+    const defaultIndex = voices.findIndex(v => v.default) || 0;
+    voiceSelect.value = defaultIndex;
   }
 
+  // Try immediate load and also listen for changes
   loadVoices();
-  speechSynthesis.onvoiceschanged = loadVoices;
+  if ('onvoiceschanged' in synth) {
+    synth.onvoiceschanged = loadVoices;
+  }
 
+  // Play function
   function play() {
-    stop();
-    const text = document.getElementById("text").value.trim();
+    // If paused, resume
+    if (synth.paused && synth.speaking) {
+      synth.resume();
+      return;
+    }
+
+    // If already speaking, restart by cancelling first
+    if (synth.speaking) {
+      synth.cancel();
+    }
+
+    const text = textEl.value.trim();
     if (!text) return;
 
     utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = rate.value;
-    utterance.pitch = pitch.value;
-    utterance.volume = volume.value;
-    utterance.voice = synth.getVoices()[voiceSelect.value];
+    utterance.rate = parseFloat(rateEl.value) || 1;
+    utterance.pitch = parseFloat(pitchEl.value) || 1;
+    utterance.volume = parseFloat(volumeEl.value) || 1;
+
+    // set voice safely
+    const voices = synth.getVoices();
+    const sel = parseInt(voiceSelect.value, 10);
+    if (!isNaN(sel) && voices[sel]) {
+      utterance.voice = voices[sel];
+      // ensure language matches voice if available
+      if (voices[sel].lang) utterance.lang = voices[sel].lang;
+    }
+
+    // cleanup when finished
+    utterance.onend = () => {
+      utterance = null;
+    };
 
     synth.speak(utterance);
   }
 
   function pause() {
-    if (synth.speaking && !synth.paused) synth.pause();
-    else if (synth.paused) synth.resume();
+    if (synth.speaking && !synth.paused) {
+      synth.pause();
+    } else if (synth.paused) {
+      synth.resume();
+    }
   }
 
   function stop() {
-    if (synth.speaking) synth.cancel();
+    if (synth.speaking || synth.paused) {
+      synth.cancel();
+      utterance = null;
+    }
   }
+
+  async function pasteText() {
+    // Use Clipboard API when available (requires secure context)
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const clip = await navigator.clipboard.readText();
+        if (clip) {
+          // append pasted text (so user doesn't lose what's already there)
+          const prev = textEl.value;
+          textEl.value = prev ? prev + (prev.endsWith("\n") ? "" : "\n") + clip : clip;
+          textEl.focus();
+          // place caret at end
+          textEl.selectionStart = textEl.selectionEnd = textEl.value.length;
+        }
+      } else {
+        // Fallback prompt if Clipboard API isn't available (rare)
+        const fallback = prompt("Paste text here:");
+        if (fallback !== null) {
+          const prev = textEl.value;
+          textEl.value = prev ? prev + (prev.endsWith("\n") ? "" : "\n") + fallback : fallback;
+        }
+      }
+    } catch (err) {
+      
+      console.warn("Paste failed:", err);
+      // optional fallback prompt for some browsers that block clipboard read
+      const fallback = prompt("Could not access clipboard directly. Paste text here instead:");
+      if (fallback !== null) {
+        const prev = textEl.value;
+        textEl.value = prev ? prev + (prev.endsWith("\n") ? "" : "\n") + fallback : fallback;
+      }
+    }
+  }
+
+  function clearText() {
+    // clear the whole textarea
+    textEl.value = "";
+    textEl.focus();
+  }
+
+  // Attach to UI buttons
+  document.getElementById("playBtn").addEventListener("click", play);
+  document.getElementById("pauseBtn").addEventListener("click", pause);
+  document.getElementById("stopBtn").addEventListener("click", stop);
+  document.getElementById("pasteBtn").addEventListener("click", pasteText);
+  document.getElementById("clearBtn").addEventListener("click", clearText);
+
+  // Safety: when page is hidden, stop speech to avoid background speaking
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      // don't abruptly cancel if paused - but cancel to be safe
+      if (synth.speaking) synth.cancel();
+    }
+  });
 </script>
 
 </body>

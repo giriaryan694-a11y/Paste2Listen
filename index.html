@@ -195,15 +195,16 @@ const captionEl = document.getElementById("caption");
 
 let utterance = null;
 let words = [];
+let captionInterval = null;
 
 const DEFAULT_CONFIG = { rate: 1, pitch: 1, volume: 1, voiceIndex: 0 };
 
+// --- Cookie helpers ---
 function setCookie(name, value, days=365){
   const d = new Date();
   d.setTime(d.getTime() + (days*24*60*60*1000));
   document.cookie = `${name}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=/`;
 }
-
 function getCookie(name){
   const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
   return v ? decodeURIComponent(v.pop()) : null;
@@ -241,7 +242,7 @@ function resetConfig(){
   saveConfig();
 }
 
-// Load voices safely
+// --- Load voices ---
 function loadVoices(){
   let voices = synth.getVoices();
   if(!voices.length){
@@ -256,7 +257,7 @@ function loadVoices(){
     voiceSelect.appendChild(opt);
   });
 
-  // Restore saved voice
+  // restore saved voice
   const savedVoiceIndex = parseInt(getCookie('voiceIndex'));
   if(!isNaN(savedVoiceIndex) && voices[savedVoiceIndex]){
     voiceSelect.value = savedVoiceIndex;
@@ -282,6 +283,7 @@ voiceSelect.addEventListener('change', ()=>{
   el.addEventListener('input', saveConfig);
 });
 
+// --- Play function with universal captions ---
 function play(){
   if(synth.paused && synth.speaking){ synth.resume(); return; }
   if(synth.speaking) synth.cancel();
@@ -302,21 +304,33 @@ function play(){
     if(voices[sel].lang) utterance.lang = voices[sel].lang;
   }
 
-  utterance.onboundary = (e)=>{
-    if(e.name==='word' && e.charIndex!==undefined){
-      let idx=0, totalChars=0;
-      while(idx<words.length && totalChars + words[idx].length < e.charIndex){
-        totalChars += words[idx].length+1;
-        idx++;
-      }
-      const captionHTML = words.map((w,i)=>i===idx?`<span class="highlight">${w}</span>`:w).join(' ');
-      captionEl.innerHTML = captionHTML;
-    }
-  };
-
-  utterance.onend = ()=>{ utterance=null; captionEl.innerHTML=""; };
   synth.speak(utterance);
   saveConfig();
+
+  // Caption simulation for all voices
+  if(captionInterval) clearInterval(captionInterval);
+  let wordIndex = 0;
+  const wordsCount = words.length;
+  const totalDuration = Math.max(1000, wordsCount * 600 / utterance.rate); // approximate ms
+  const intervalTime = totalDuration / wordsCount;
+
+  captionEl.innerHTML = words.join(' ');
+
+  captionInterval = setInterval(()=>{
+    if(wordIndex >= wordsCount){
+      clearInterval(captionInterval);
+      captionEl.innerHTML = '';
+      return;
+    }
+    captionEl.innerHTML = words.map((w,i)=>i===wordIndex?`<span class="highlight">${w}</span>`:w).join(' ');
+    wordIndex++;
+  }, intervalTime);
+
+  utterance.onend = ()=>{
+    if(captionInterval) clearInterval(captionInterval);
+    captionEl.innerHTML='';
+    utterance = null;
+  };
 }
 
 function pause(){ 
@@ -325,7 +339,12 @@ function pause(){
 }
 
 function stop(){
-  if(synth.speaking || synth.paused){ synth.cancel(); utterance=null; captionEl.innerHTML=""; }
+  if(synth.speaking || synth.paused){ 
+    synth.cancel(); 
+    utterance=null; 
+    captionEl.innerHTML=''; 
+    if(captionInterval) clearInterval(captionInterval);
+  }
 }
 
 async function pasteText(){
@@ -362,7 +381,6 @@ document.getElementById("stopBtn").addEventListener("click", stop);
 document.getElementById("pasteBtn").addEventListener("click", pasteText);
 document.getElementById("clearBtn").addEventListener("click", clearText);
 document.getElementById("resetBtn").addEventListener("click", resetConfig);
-
 </script>
 </body>
 </html>

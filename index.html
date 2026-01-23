@@ -185,165 +185,182 @@
 </div>
 
 <script>
-  const synth = window.speechSynthesis;
-  const voiceSelect = document.getElementById("voice");
-  const textEl = document.getElementById("text");
-  const rateEl = document.getElementById("rate");
-  const pitchEl = document.getElementById("pitch");
-  const volumeEl = document.getElementById("volume");
-  const captionEl = document.getElementById("caption");
+const synth = window.speechSynthesis;
+const voiceSelect = document.getElementById("voice");
+const textEl = document.getElementById("text");
+const rateEl = document.getElementById("rate");
+const pitchEl = document.getElementById("pitch");
+const volumeEl = document.getElementById("volume");
+const captionEl = document.getElementById("caption");
 
-  let utterance = null;
+let utterance = null;
+let words = [];
 
-  const DEFAULT_CONFIG = { rate: 1, pitch: 1, volume: 1, voiceIndex: 0 };
+const DEFAULT_CONFIG = { rate: 1, pitch: 1, volume: 1, voiceIndex: 0 };
 
-  function setCookie(name, value, days=365) {
-    const d = new Date();
-    d.setTime(d.getTime() + (days*24*60*60*1000));
-    document.cookie = `${name}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=/`;
-  }
+function setCookie(name, value, days=365){
+  const d = new Date();
+  d.setTime(d.getTime() + (days*24*60*60*1000));
+  document.cookie = `${name}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=/`;
+}
 
-  function getCookie(name) {
-    const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
-    return v ? decodeURIComponent(v.pop()) : null;
-  }
+function getCookie(name){
+  const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+  return v ? decodeURIComponent(v.pop()) : null;
+}
 
-  function saveConfig() {
-    setCookie('rate', rateEl.value);
-    setCookie('pitch', pitchEl.value);
-    setCookie('volume', volumeEl.value);
-    setCookie('voiceIndex', voiceSelect.value);
-  }
+function saveConfig(){
+  setCookie('rate', rateEl.value);
+  setCookie('pitch', pitchEl.value);
+  setCookie('volume', volumeEl.value);
+  setCookie('voiceIndex', voiceSelect.value);
+}
 
-  function loadConfig() {
-    const rate = parseFloat(getCookie('rate')) || DEFAULT_CONFIG.rate;
-    const pitch = parseFloat(getCookie('pitch')) || DEFAULT_CONFIG.pitch;
-    const volume = parseFloat(getCookie('volume')) || DEFAULT_CONFIG.volume;
-    const voiceIndex = parseInt(getCookie('voiceIndex')) || DEFAULT_CONFIG.voiceIndex;
-
-    rateEl.value = rate;
-    pitchEl.value = pitch;
-    volumeEl.value = volume;
+function loadConfig(){
+  const rate = parseFloat(getCookie('rate')) || DEFAULT_CONFIG.rate;
+  const pitch = parseFloat(getCookie('pitch')) || DEFAULT_CONFIG.pitch;
+  const volume = parseFloat(getCookie('volume')) || DEFAULT_CONFIG.volume;
+  const voiceIndex = parseInt(getCookie('voiceIndex'));
+  
+  rateEl.value = rate;
+  pitchEl.value = pitch;
+  volumeEl.value = volume;
+  
+  if(!isNaN(voiceIndex) && voiceSelect.options[voiceIndex]){
     voiceSelect.value = voiceIndex;
-  }
-
-  function resetConfig() {
-    rateEl.value = DEFAULT_CONFIG.rate;
-    pitchEl.value = DEFAULT_CONFIG.pitch;
-    volumeEl.value = DEFAULT_CONFIG.volume;
+  } else {
     voiceSelect.value = DEFAULT_CONFIG.voiceIndex;
-    saveConfig();
+  }
+}
+
+function resetConfig(){
+  rateEl.value = DEFAULT_CONFIG.rate;
+  pitchEl.value = DEFAULT_CONFIG.pitch;
+  volumeEl.value = DEFAULT_CONFIG.volume;
+  voiceSelect.value = DEFAULT_CONFIG.voiceIndex;
+  saveConfig();
+}
+
+function loadVoices(){
+  const voices = synth.getVoices() || [];
+  voiceSelect.innerHTML = "";
+
+  if(!voices.length){
+    const opt = document.createElement("option");
+    opt.value = -1;
+    opt.textContent = "Default (no voices loaded)";
+    voiceSelect.appendChild(opt);
+    return;
   }
 
-  function loadVoices() {
-    const voices = synth.getVoices() || [];
-    voiceSelect.innerHTML = "";
+  voices.forEach((v,i)=>{
+    const opt = document.createElement("option");
+    opt.value = i;
+    opt.textContent = `${v.name} (${v.lang})`;
+    voiceSelect.appendChild(opt);
+  });
 
-    if (!voices.length) {
-      const opt = document.createElement("option");
-      opt.value = -1;
-      opt.textContent = "Default (no voices loaded)";
-      voiceSelect.appendChild(opt);
-      return;
-    }
+  loadConfig();
+}
 
-    voices.forEach((v,i)=>{
-      const opt = document.createElement("option");
-      opt.value = i;
-      opt.textContent = `${v.name} (${v.lang})`;
-      voiceSelect.appendChild(opt);
-    });
+loadVoices();
+if('onvoiceschanged' in synth) synth.onvoiceschanged = loadVoices;
 
-    loadConfig();
+// Update voice in real-time while speaking
+voiceSelect.addEventListener('change', ()=>{
+  saveConfig();
+  if(utterance && synth.speaking){
+    const pos = synth.speaking ? synth.pause(), synth.resume(), synth.speaking : 0;
+    stop();
+    play();
+  }
+});
+
+[rateEl, pitchEl, volumeEl].forEach(el=>{
+  el.addEventListener('input', saveConfig);
+});
+
+function play(){
+  if(synth.paused && synth.speaking){ synth.resume(); return; }
+  if(synth.speaking) synth.cancel();
+
+  const text = textEl.value.trim();
+  if(!text) return;
+
+  words = text.split(/\s+/);
+  utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = parseFloat(rateEl.value) || 1;
+  utterance.pitch = parseFloat(pitchEl.value) || 1;
+  utterance.volume = parseFloat(volumeEl.value) || 1;
+
+  const voices = synth.getVoices();
+  const sel = parseInt(voiceSelect.value,10);
+  if(!isNaN(sel) && voices[sel]){
+    utterance.voice = voices[sel];
+    if(voices[sel].lang) utterance.lang = voices[sel].lang;
   }
 
-  loadVoices();
-  if ('onvoiceschanged' in synth) synth.onvoiceschanged = loadVoices;
-
-  function play() {
-    if (synth.paused && synth.speaking) { synth.resume(); return; }
-    if (synth.speaking) synth.cancel();
-
-    const text = textEl.value.trim();
-    if (!text) return;
-
-    utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = parseFloat(rateEl.value) || 1;
-    utterance.pitch = parseFloat(pitchEl.value) || 1;
-    utterance.volume = parseFloat(volumeEl.value) || 1;
-
-    const voices = synth.getVoices();
-    const sel = parseInt(voiceSelect.value,10);
-    if (!isNaN(sel) && voices[sel]) {
-      utterance.voice = voices[sel];
-      if (voices[sel].lang) utterance.lang = voices[sel].lang;
-    }
-
-    // Karaoke-style captions
-    const words = text.split(/\s+/);
-    utterance.onboundary = (e)=>{
-      if(e.name === 'word' && e.charIndex !== undefined){
-        let index = 0;
-        let totalChars = 0;
-        while(index < words.length && totalChars + words[index].length < e.charIndex){
-          totalChars += words[index].length + 1;
-          index++;
-        }
-        let captionHTML = words.map((w,i)=> i===index? `<span class="highlight">${w}</span>`: w).join(' ');
-        captionEl.innerHTML = captionHTML;
+  utterance.onboundary = (e)=>{
+    if(e.name==='word' && e.charIndex!==undefined){
+      let idx=0, totalChars=0;
+      while(idx<words.length && totalChars + words[idx].length < e.charIndex){
+        totalChars += words[idx].length+1;
+        idx++;
       }
-    };
+      const captionHTML = words.map((w,i)=>i===idx?`<span class="highlight">${w}</span>`:w).join(' ');
+      captionEl.innerHTML = captionHTML;
+    }
+  };
 
-    utterance.onend = ()=> { utterance = null; captionEl.innerHTML = ""; };
-    synth.speak(utterance);
+  utterance.onend = ()=>{ utterance=null; captionEl.innerHTML=""; };
+  synth.speak(utterance);
+  saveConfig();
+}
 
-    saveConfig();
-  }
+function pause(){ 
+  if(synth.speaking && !synth.paused) synth.pause(); 
+  else if(synth.paused) synth.resume(); 
+}
 
-  function pause() { 
-    if(synth.speaking && !synth.paused) synth.pause(); 
-    else if(synth.paused) synth.resume(); 
-  }
+function stop(){
+  if(synth.speaking || synth.paused){ synth.cancel(); utterance=null; captionEl.innerHTML=""; }
+}
 
-  function stop() { 
-    if(synth.speaking || synth.paused){ synth.cancel(); utterance=null; captionEl.innerHTML=""; }
-  }
-
-  async function pasteText() {
-    try {
-      if(navigator.clipboard && navigator.clipboard.readText){
-        const clip = await navigator.clipboard.readText();
-        if(clip){
-          const prev = textEl.value;
-          textEl.value = prev ? prev + (prev.endsWith("\n")?"":"\n")+clip : clip;
-          textEl.focus();
-          textEl.selectionStart = textEl.selectionEnd = textEl.value.length;
-        }
-      } else {
-        const fallback = prompt("Paste text here:");
-        if(fallback!==null){
-          const prev = textEl.value;
-          textEl.value = prev ? prev + (prev.endsWith("\n")?"":"\n")+fallback : fallback;
-        }
+async function pasteText(){
+  try{
+    if(navigator.clipboard && navigator.clipboard.readText){
+      const clip = await navigator.clipboard.readText();
+      if(clip){
+        const prev = textEl.value;
+        textEl.value = prev ? prev + (prev.endsWith("\n")?"":"\n")+clip : clip;
+        textEl.focus();
+        textEl.selectionStart = textEl.selectionEnd = textEl.value.length;
       }
-    } catch {
-      const fallback = prompt("Could not access clipboard directly. Paste text here instead:");
+    } else {
+      const fallback = prompt("Paste text here:");
       if(fallback!==null){
         const prev = textEl.value;
         textEl.value = prev ? prev + (prev.endsWith("\n")?"":"\n")+fallback : fallback;
       }
     }
+  }catch{
+    const fallback = prompt("Could not access clipboard directly. Paste text here instead:");
+    if(fallback!==null){
+      const prev = textEl.value;
+      textEl.value = prev ? prev + (prev.endsWith("\n")?"":"\n")+fallback : fallback;
+    }
   }
+}
 
-  function clearText(){ textEl.value=""; textEl.focus(); captionEl.innerHTML=""; }
+function clearText(){ textEl.value=""; textEl.focus(); captionEl.innerHTML=""; }
 
-  document.getElementById("playBtn").addEventListener("click", play);
-  document.getElementById("pauseBtn").addEventListener("click", pause);
-  document.getElementById("stopBtn").addEventListener("click", stop);
-  document.getElementById("pasteBtn").addEventListener("click", pasteText);
-  document.getElementById("clearBtn").addEventListener("click", clearText);
-  document.getElementById("resetBtn").addEventListener("click", resetConfig);
+document.getElementById("playBtn").addEventListener("click", play);
+document.getElementById("pauseBtn").addEventListener("click", pause);
+document.getElementById("stopBtn").addEventListener("click", stop);
+document.getElementById("pasteBtn").addEventListener("click", pasteText);
+document.getElementById("clearBtn").addEventListener("click", clearText);
+document.getElementById("resetBtn").addEventListener("click", resetConfig);
+
 </script>
-
 </body>
 </html>

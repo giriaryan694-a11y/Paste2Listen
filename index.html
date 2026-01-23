@@ -195,7 +195,8 @@ const captionEl = document.getElementById("caption");
 
 let utterance = null;
 let words = [];
-let captionInterval = null;
+let startTime = null;
+let rafId = null;
 
 const DEFAULT_CONFIG = { rate: 1, pitch: 1, volume: 1, voiceIndex: 0 };
 
@@ -283,7 +284,7 @@ voiceSelect.addEventListener('change', ()=>{
   el.addEventListener('input', saveConfig);
 });
 
-// --- Play function with universal captions ---
+// --- Play function with smooth captions ---
 function play(){
   if(synth.paused && synth.speaking){ synth.resume(); return; }
   if(synth.speaking) synth.cancel();
@@ -307,29 +308,26 @@ function play(){
   synth.speak(utterance);
   saveConfig();
 
-  // Caption simulation for all voices
-  if(captionInterval) clearInterval(captionInterval);
-  let wordIndex = 0;
-  const wordsCount = words.length;
-  const totalDuration = Math.max(1000, wordsCount * 600 / utterance.rate); // approximate ms
-  const intervalTime = totalDuration / wordsCount;
-
   captionEl.innerHTML = words.join(' ');
+  startTime = performance.now();
 
-  captionInterval = setInterval(()=>{
-    if(wordIndex >= wordsCount){
-      clearInterval(captionInterval);
-      captionEl.innerHTML = '';
-      return;
-    }
-    captionEl.innerHTML = words.map((w,i)=>i===wordIndex?`<span class="highlight">${w}</span>`:w).join(' ');
-    wordIndex++;
-  }, intervalTime);
+  const estimatedDuration = Math.max(2000, words.length*600/utterance.rate); // rough total ms
+
+  function update(){
+    if(!utterance || !synth.speaking) return;
+    const now = performance.now();
+    let progress = (now - startTime)/estimatedDuration;
+    if(progress > 1) progress = 1;
+    const idx = Math.floor(progress * words.length);
+    captionEl.innerHTML = words.map((w,i)=>i<=idx?`<span class="highlight">${w}</span>`:w).join(' ');
+    if(progress < 1) rafId = requestAnimationFrame(update);
+  }
+  rafId = requestAnimationFrame(update);
 
   utterance.onend = ()=>{
-    if(captionInterval) clearInterval(captionInterval);
     captionEl.innerHTML='';
-    utterance = null;
+    utterance=null;
+    if(rafId) cancelAnimationFrame(rafId);
   };
 }
 
@@ -343,7 +341,7 @@ function stop(){
     synth.cancel(); 
     utterance=null; 
     captionEl.innerHTML=''; 
-    if(captionInterval) clearInterval(captionInterval);
+    if(rafId) cancelAnimationFrame(rafId);
   }
 }
 

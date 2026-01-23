@@ -113,23 +113,6 @@
     box-shadow: 0 4px 16px rgba(56,189,248,0.45);
   }
 
-  #caption {
-    margin-top: 10px;
-    font-size: 14px;
-    color: #e5e7eb;
-    min-height: 20px;
-    background: rgba(2,6,23,0.5);
-    border-radius: 8px;
-    padding: 6px;
-    overflow-wrap: break-word;
-    line-height: 1.4;
-  }
-
-  #caption .highlight {
-    color: #38bdf8;
-    font-weight: 600;
-  }
-
   footer {
     margin-top: 10px;
     text-align: center;
@@ -176,8 +159,6 @@
     <button class="secondary" id="resetBtn">🔄 Reset Config</button>
   </div>
 
-  <div id="caption"></div>
-
   <footer>
     Offline • Private • Eye-Friendly<br>
     <span style="color:#38bdf8;">Made By Aryan Giri</span>
@@ -191,12 +172,8 @@ const textEl = document.getElementById("text");
 const rateEl = document.getElementById("rate");
 const pitchEl = document.getElementById("pitch");
 const volumeEl = document.getElementById("volume");
-const captionEl = document.getElementById("caption");
 
 let utterance = null;
-let words = [];
-let startTime = null;
-let rafId = null;
 
 const DEFAULT_CONFIG = { rate: 1, pitch: 1, volume: 1, voiceIndex: 0 };
 
@@ -207,7 +184,7 @@ function setCookie(name, value, days=365){
   document.cookie = `${name}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=/`;
 }
 function getCookie(name){
-  const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+  const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\s*([^;]+)');
   return v ? decodeURIComponent(v.pop()) : null;
 }
 
@@ -271,7 +248,6 @@ function loadVoices(){
 if('onvoiceschanged' in synth) synth.onvoiceschanged = loadVoices;
 loadVoices();
 
-// Update voice in real-time
 voiceSelect.addEventListener('change', ()=>{
   saveConfig();
   if(utterance && synth.speaking){
@@ -284,7 +260,7 @@ voiceSelect.addEventListener('change', ()=>{
   el.addEventListener('input', saveConfig);
 });
 
-// --- Play function with smooth captions ---
+// --- Play/Pause/Stop ---
 function play(){
   if(synth.paused && synth.speaking){ synth.resume(); return; }
   if(synth.speaking) synth.cancel();
@@ -292,7 +268,6 @@ function play(){
   const text = textEl.value.trim();
   if(!text) return;
 
-  words = text.split(/\s+/);
   utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = parseFloat(rateEl.value) || 1;
   utterance.pitch = parseFloat(pitchEl.value) || 1;
@@ -308,27 +283,7 @@ function play(){
   synth.speak(utterance);
   saveConfig();
 
-  captionEl.innerHTML = words.join(' ');
-  startTime = performance.now();
-
-  const estimatedDuration = Math.max(2000, words.length*600/utterance.rate); // rough total ms
-
-  function update(){
-    if(!utterance || !synth.speaking) return;
-    const now = performance.now();
-    let progress = (now - startTime)/estimatedDuration;
-    if(progress > 1) progress = 1;
-    const idx = Math.floor(progress * words.length);
-    captionEl.innerHTML = words.map((w,i)=>i<=idx?`<span class="highlight">${w}</span>`:w).join(' ');
-    if(progress < 1) rafId = requestAnimationFrame(update);
-  }
-  rafId = requestAnimationFrame(update);
-
-  utterance.onend = ()=>{
-    captionEl.innerHTML='';
-    utterance=null;
-    if(rafId) cancelAnimationFrame(rafId);
-  };
+  utterance.onend = ()=>{ utterance=null; };
 }
 
 function pause(){ 
@@ -340,8 +295,6 @@ function stop(){
   if(synth.speaking || synth.paused){ 
     synth.cancel(); 
     utterance=null; 
-    captionEl.innerHTML=''; 
-    if(rafId) cancelAnimationFrame(rafId);
   }
 }
 
@@ -371,7 +324,7 @@ async function pasteText(){
   }
 }
 
-function clearText(){ textEl.value=""; textEl.focus(); captionEl.innerHTML=""; }
+function clearText(){ textEl.value=""; textEl.focus(); }
 
 document.getElementById("playBtn").addEventListener("click", play);
 document.getElementById("pauseBtn").addEventListener("click", pause);

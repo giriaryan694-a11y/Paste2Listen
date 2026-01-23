@@ -241,18 +241,14 @@ function resetConfig(){
   saveConfig();
 }
 
+// Load voices safely
 function loadVoices(){
-  const voices = synth.getVoices() || [];
-  voiceSelect.innerHTML = "";
-
+  let voices = synth.getVoices();
   if(!voices.length){
-    const opt = document.createElement("option");
-    opt.value = -1;
-    opt.textContent = "Default (no voices loaded)";
-    voiceSelect.appendChild(opt);
+    setTimeout(loadVoices, 100);
     return;
   }
-
+  voiceSelect.innerHTML = "";
   voices.forEach((v,i)=>{
     const opt = document.createElement("option");
     opt.value = i;
@@ -260,17 +256,23 @@ function loadVoices(){
     voiceSelect.appendChild(opt);
   });
 
-  loadConfig();
+  // Restore saved voice
+  const savedVoiceIndex = parseInt(getCookie('voiceIndex'));
+  if(!isNaN(savedVoiceIndex) && voices[savedVoiceIndex]){
+    voiceSelect.value = savedVoiceIndex;
+  } else {
+    const defaultIndex = voices.findIndex(v=>v.default) || 0;
+    voiceSelect.value = defaultIndex;
+  }
 }
 
-loadVoices();
 if('onvoiceschanged' in synth) synth.onvoiceschanged = loadVoices;
+loadVoices();
 
-// Update voice in real-time while speaking
+// Update voice in real-time
 voiceSelect.addEventListener('change', ()=>{
   saveConfig();
   if(utterance && synth.speaking){
-    const pos = synth.speaking ? synth.pause(), synth.resume(), synth.speaking : 0;
     stop();
     play();
   }
